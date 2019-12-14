@@ -19,7 +19,7 @@ p_city_pro=read.csv('p_city_pro.csv')
 exp_edu_pro=read.csv('expend_edu_pro.csv')
 exp_farm_pro=read.csv('expend_farm_pro.csv')
 third_pro=read.csv('third_pro.csv')
-pgdp=read.csv('各省人均GDP.csv')
+gdp=read.csv('各省人均GDP.csv')
 egdp=read.csv('exp_GDP_pro.csv')
 # 单位分为国有和非国有
 # 职业根据国标分为4类，参照王磊
@@ -115,7 +115,7 @@ total<-merge(total,p_city_pro,by = 'pro',all.x = TRUE)
 total<-merge(total,exp_edu_pro,by = 'pro',all.x = TRUE)
 total<-merge(total,exp_farm_pro,by = 'pro',all.x = TRUE)
 total<-merge(total,third_pro,by = 'pro',all.x = TRUE)
-total<-merge(total,pgdp,by = 'pro',all.x = TRUE)
+total<-merge(total,gdp,by = 'pro',all.x = TRUE)
 total<-merge(total,egdp,by = 'pro',all.x = TRUE)
 # 调整价格，连接宏观变量
 res15_1<-total%>%filter(year==2015)%>%mutate(inc_cpi=income/X2015,p=p2015,e=e2015,f=f2015,t=t2015,pgdp=pgdp2015,eg=eg2015)
@@ -136,12 +136,22 @@ res12_11<-res12_1%>%filter(urban==1,(linc > quantile(linc, 0.01)) & (linc < quan
 res12_10<-res12_1%>%filter(urban==0,(linc > quantile(linc, 0.01)) & (linc < quantile(linc, 0.99)))
 res10_11<-res10_1%>%filter(urban==1,(linc > quantile(linc, 0.01)) & (linc < quantile(linc, 0.99)))
 res10_10<-res10_1%>%filter(urban==0,(linc > quantile(linc, 0.01)) & (linc < quantile(linc, 0.99)))
-total1<-rbind(res10_11,res10_10,res12_11,res12_10,res13_11,res13_10,res15_11,res15_10)
-# 区域
+total1<-rbind(res10_11,res10_10,res12_11,res12_10,res13_11,res13_10,res15_11,res15_10)%>%mutate(cohort=ifelse(between(birthy_f,1941,1950),0,
+                                                                                                              ifelse(between(birthy_f,1951,1960),1,
+                                                                                                                     ifelse(between(birthy_f,1961,1970),2,
+                                                                                                                            ifelse(between(birthy_f,1971,1980),3,
+                                                                                                                                   ifelse(between(birthy_f,1981,1990),4,ifelse(between(birthy_f,1991,2000),5,6)))))))
+# 区域、调查年份、出生年代
 dum_dis<-class.ind(total1$dis)
 colnames(dum_dis)<-c('d0','d1','d2')
-total2<-cbind(total1,dum_dis)
-total3<-total2[c('urban','gender','age_c','age_c2','age_f','age_f2','eduy_c','eduy_f','com_c','isei_c','isei_f','party_c','income','linc','d1','d2','p','e','f','t','pgdp','eg','year')]
+dum_y<-class.ind(total1$year)
+colnames(dum_y)<-c('y0','y2','y3','y5')
+dum_c<-class.ind(total1$cohort)
+colnames(dum_c)<-c('c0','c1','c2','c3')
+total2<-cbind(total1,dum_dis,dum_y,dum_c)
+total3<-total2[c('urban','gender','age_c','age_c2','age_f','age_f2',
+                 'eduy_c','eduy_f','isei_c','isei_f','party_c','income','linc',
+                 'd1','d2','y2','y3','y5','c1','c2','c3','p','e','f','t','pgdp','eg','year')]
 total3<-na.omit(total3)
 
 # 辅样本数据CFPS
@@ -162,19 +172,29 @@ raw14_11<-result%>%filter(year==2014)%>%filter(urban==1,(lincome > quantile(linc
 raw14_10<-result%>%filter(year==2014)%>%filter(urban==0,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
 raw16_11<-result%>%filter(year==2016)%>%filter(urban==1,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
 raw16_10<-result%>%filter(year==2016)%>%filter(urban==0,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
-result<-rbind(raw10_10,raw10_11,raw12_10,raw12_11,raw14_10,raw14_11,raw16_10,raw16_11)
+result<-rbind(raw10_10,raw10_11,raw12_10,raw12_11,
+              raw14_10,raw14_11,raw16_10,raw16_11)%>%mutate(birthy=year-age,cohort=ifelse(between(birthy,1941,1950),0,
+                                                                           ifelse(between(birthy,1951,1960),1,
+                                                                                  ifelse(between(birthy,1961,1970),2,
+                                                                                         ifelse(between(birthy,1971,1980),3,
+                                                                                                ifelse(between(birthy,1981,1990),4,ifelse(between(birthy,1991,2000),5,6)))))))
 dum_disf<-class.ind(result$dis)
 colnames(dum_disf)<-c('d0','d1','d2')
-result<-cbind(result,dum_disf)
+dum_cohort<-class.ind(result$cohort)
+colnames(dum_cohort)<-c('c0','c1','c2','c3')
+result<-cbind(result,dum_disf,dum_cohort)
 
-# 价格调整
 # TS2SLS第一阶段 估计父代收入
-m1<-lm(lincome~age+age2+d1+d2+job+eduy,data=result)
+m1<-lm(lincome~age+age2+d1+d2+c1+c2+c3+job+eduy,data=result)
 summary(m1)
 
-linc_f<-predict(m1,newdata = data.frame(d1=total3$d1,d2=total3$d2,eduy=total3$eduy_f,age=total3$age_f,age2=total3$age_f2,job=total3$isei_f))
+linc_f<-predict(m1,newdata = data.frame(d1=total3$d1,d2=total3$d2,eduy=total3$eduy_f,
+                                        age=total3$age_f,age2=total3$age_f2,job=total3$isei_f,
+                                        c1=total3$c1,c2=total3$c2,c3=total3$c3))
 mdata<-cbind(total3,linc_f)
 
+lm1=lm(linc~linc_f+age_c+age_c2+age_f+age_f2+gender,data=mdata)
+summary(lm1)
 # 2010年
 #全样本
 lm10=lm(linc~linc_f+age_c+age_c2+age_f+age_f2+gender,data=mdata%>%filter(year==2010))
@@ -233,29 +253,105 @@ summary(fit15, se = "boot")
 fit1 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata)         
 summary(fit1, se = "boot")
 
-# 城镇化因素
-cl1<-lm(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+# 城镇化因素，混合截面数据控制年份，2010年为基准年
+# 最后是否需要添加调查年份虚拟变量，视情况而定，主要看后面中介效应的检验结果
+cl1<-lm(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+# cl1<-lm(linc~linc_f*p+age_c+age_c2+age_f+age_f2,data=mdata)
 summary(cl1)
-cl2<-lm(linc~linc_f*e+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+cl2<-lm(linc~linc_f*e+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(cl2)
-cl3<-lm(linc~linc_f*f+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+cl3<-lm(linc~linc_f*f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(cl3)
-cl4<-lm(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+cl4<-lm(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(cl4)
-cl5<-lm(linc~linc_f*pgdp+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+cl5<-lm(linc~linc_f*log(pgdp)+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(cl5)
-cl6<-lm(linc~linc_f*eg+age_c+age_c2+age_f+age_f2+gender+urban,data=mdata)
+cl6<-lm(linc~linc_f*eg+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(cl6)
 
-r1<-rq(linc~linc_f*log(pgdp)+age_c+age_c2+age_f+age_f2+gender+urban,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+# 分位数回归，因为控制年份会报错：非奇异，所以不添加年份
+# 暂时只做了显著的几个
+r1<-rq(linc~linc_f*p+age_c+age_c2+age_f+age_f2+factor(gender)+factor(urban)+y2+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r1, se = "boot")
-r2<-rq(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+r2<-rq(linc~linc_f*log(pgdp)+age_c+age_c2+age_f+age_f2+factor(gender)+factor(urban)+y2+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r2, se = "boot")
-r3<-rq(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+r3<-rq(linc~linc_f*t+age_c+age_c2+age_f+age_f2+factor(gender)+factor(urban)+y2+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r3, se = "boot")
 
-
-k1=lm(party_c~linc_f+p*linc_f,data=mdata)
+# 有中介的调节模型
+# 注意自变量、因变量、中介变量、调节变量需要中心化
+mdata<-mdata%>%mutate(slinc=scale(linc),slinc_f=scale(linc_f),seduy_c=scale(eduy_c),seduy_f=scale(eduy_f),
+                      sisei_c=scale(isei_c),sisei_f=scale(isei_f),sp=scale(p),st=scale(t),spgdp=scale(log(pgdp)))
+# 城镇化率
+# 子代受教育年份
+k1=lm(seduy_c~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(k1)
-k2=lm(linc~linc_f+p*linc_f+party_c,data=mdata)
+k2=lm(slinc~slinc_f+sp*slinc_f+seduy_c*sp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
 summary(k2)
+# 子代职业
+k1=lm(sisei_c~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+sisei_c*sp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代受教育
+k1=lm(seduy_f~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+seduy_f*sp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代职业
+k1=lm(sisei_f~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+sisei_f*sp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+
+# 产业结构
+# 子代受教育年份
+k1=lm(seduy_c~slinc_f+st*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+st*slinc_f+seduy_c*st+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 子代职业
+k1=lm(sisei_c~slinc_f+st*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+st*slinc_f+sisei_c*st+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代受教育
+k1=lm(seduy_f~slinc_f+st*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+st*slinc_f+seduy_f*st+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代职业
+k1=lm(sisei_f~slinc_f+st*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+st*slinc_f+sisei_f*st+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+
+# 人均GDP
+# 子代受教育
+k1=lm(seduy_c~slinc_f+spgdp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+spgdp*slinc_f+seduy_c*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 子代职业
+k1=lm(sisei_c~slinc_f+spgdp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+spgdp*slinc_f+sisei_c*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代受教育
+k1=lm(seduy_f~slinc_f+spgdp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+spgdp*slinc_f+seduy_f*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+# 父代职业
+k1=lm(sisei_f~slinc_f+spgdp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+spgdp*slinc_f+sisei_f*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+summary(k2)
+
+# 社会资本主成分
+x<-scale(total3[c('party_c','isei_c')])
+pc<-princomp(x, cor = T)
+summary(pc, loadings = T)
+pc_data<-predict(pc)
+# 碎石图
+fa.parallel(x,fa='pc',n.iter = 100,show.legend = F,main = 'Scree plot with parallel analysis')
