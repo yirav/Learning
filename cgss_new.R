@@ -2,10 +2,7 @@ setwd("C:\\Users\\yirav\\Documents\\jupyter notebook\\data result")
 
 library(tidyverse)
 library(readstata13)
-library(reshape2)
-library(mlogit)
 library(nnet)# dummy variable
-library(AER) # 
 library(quantreg) # 分位数回归
 library(psych)# 描述性统计
 library(ggplot2)
@@ -24,7 +21,6 @@ gdp=read.csv('各省人均GDP.csv')
 egdp=read.csv('exp_GDP_pro.csv')
 
 # 单位分为国有和非国有
-# 职业根据国标分为4类，参照王磊
 # 政治面貌分为党员和非党员
 # 城市1，农村0(原来是2)
 data15=data15%>%rename(gender=a2,birthy_c=a301,birthy_f=a89a,edu_c=a7a,edu_f=a89b,income=a8a,
@@ -109,7 +105,7 @@ total<-total%>%mutate(eduy_c=ifelse(edu_c%in%c(1,2),0,ifelse(edu_c==3,6,ifelse(e
 total$dis[total$pro%in%c(11,12,13,21,31,32,33,35,37,44,46)]<-0
 total$dis[total$pro%in%c(14,22,23,34,36,41,42,43)]<-1
 total$dis[total$pro%in%c(15,45,50,51,52,53,54,61,62,63,64,65)]<-2
-total$gender=ifelse(total$gender==2,0,1)
+total$gender=ifelse(total$gender==2,0,1)# 男1女0
 # 连接CPI
 total<-merge(total,cpi,by.x='pro',by.y = 'No',all.x = TRUE)
 # 添加宏观变量
@@ -168,18 +164,20 @@ raw_data16=read.csv('model2016.csv')
 raw_data14=read.csv('model2014.csv')
 raw_data12=read.csv('model2012.csv')
 raw_data10=read.csv('model2010.csv')
-# result=rbind(raw_data16,raw_data14,raw_data12,raw_data10)
+# result=rbind(raw_data16,raw_data14,raw_data12,raw_data10)%>%filter(between(age,36,65))
 result=rbind(raw_data16,raw_data14,raw_data12)%>%filter(between(age,36,65))
 result<-result%>%mutate(lincome=log(income),birthy=year-age,cohort=ifelse(between(birthy,1941,1950),0,
                                                                                      ifelse(between(birthy,1951,1960),1,
                                                                                             ifelse(between(birthy,1961,1970),2,
                                                                                                    ifelse(between(birthy,1971,1980),3,
                                                                                                           ifelse(between(birthy,1981,1990),4,ifelse(between(birthy,1991,2000),5,6)))))))
+# 区域
 result$dis[result$pro%in%c(11,12,13,21,31,32,33,35,37,44,46)]<-0
 result$dis[result$pro%in%c(14,22,23,34,36,41,42,43)]<-1
 result$dis[result$pro%in%c(15,45,50,51,52,53,54,61,62,63,64,65)]<-2
-# raw10_11<-result%>%filter(year==2010)%>%filter(urban==1,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
-# raw10_10<-result%>%filter(year==2010)%>%filter(urban==0,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
+# 剔除1%极值
+raw10_11<-result%>%filter(year==2010)%>%filter(urban==1,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
+raw10_10<-result%>%filter(year==2010)%>%filter(urban==0,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
 raw12_11<-result%>%filter(year==2012)%>%filter(urban==1,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
 raw12_10<-result%>%filter(year==2012)%>%filter(urban==0,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
 raw14_11<-result%>%filter(year==2014)%>%filter(urban==1,(lincome > quantile(lincome, 0.01)) & (lincome < quantile(lincome, 0.99)))
@@ -200,7 +198,7 @@ result1<-cbind(result1,dum_disf,dum_cohort)
 # TS2SLS第一阶段 估计父代收入
 m1<-lm(lincome~age+age2+d1+d2+c1+c2+c3+job+eduy+urban+age*eduy+age*job,data=result1)
 summary(m1)
-
+# 预测父代收入
 linc_f<-predict(m1,newdata = data.frame(d1=total3$d1,d2=total3$d2,eduy=total3$eduy_f,urban=total3$urban,
                                         age=total3$age_f,age2=total3$age_f2,job=total3$isei_f,
                                         c1=total3$c1,c2=total3$c2,c3=total3$c3))
@@ -209,6 +207,8 @@ mdata<-cbind(total3,linc_f)
 # 全样本
 lm1=lm(linc~linc_f+age_c+age_c2+age_f+age_f2+gender,data=mdata)
 summary(lm1)
+# lm1=lm(linc~linc_f+age_c+age_c2+age_f+age_f2,data=mdata%>%filter(gender==1))
+# summary(lm1)
 # 农村
 lm1_0=lm(linc~linc_f+age_c+age_c2+age_f+age_f2+gender,data=mdata%>%filter(urban==0))
 summary(lm1_0)
@@ -262,35 +262,59 @@ summary(lm15_0)
 # fit10 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender+urban, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2010))         
 # summary(fit10, se = "boot")
 # 2012
-fit12 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2012))         
+fit12 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2012))         
 summary(fit12, se = "boot")
 # 2013
-fit13 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2013))         
+fit13 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2013))         
 summary(fit13, se = "boot")
+plot(summary(fit13, se = "boot"),parm=c(2))
 # 2015
-fit15 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2015))         
-summary(fit15, se = "boot")
+fit15 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata%>%filter(year==2015))         
+y3<-summary(fit15, se = "boot")
+plot(summary(fit15, se = "boot"),parm=c(2))
 # 全样本
-fit1 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender+urban, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata)         
+fit1 = rq(linc~linc_f+age_c+age_c2+age_f+age_f2+gender, tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9), data = mdata)         
 summary(fit1, se = "boot")
 
+# 分位数回归作图
+par(mfrow=c(3,1),no.readonly = TRUE)
+plot(summary(fit12, se = "boot"),parm=c(2))
+plot(summary(fit13, se = "boot"),parm=c(2))
+plot(summary(fit15, se = "boot"),parm=c(2))
+
+
 # 城镇化因素，混合截面数据控制年份，2010年为基准年
+# 注意自变量、因变量、中介变量、调节变量需要中心化
+mdata<-mdata%>%mutate(slinc=scale(linc),slinc_f=scale(linc_f),seduy_c=scale(eduy_c),seduy_f=scale(eduy_f),se=scale(e),sf=scale(f),seg=scale(eg),
+                      sisei_c=scale(isei_c),sisei_f=scale(isei_f),sp=scale(p),st=scale(t),spgdp=scale(log(pgdp)))
 # 最后是否需要添加调查年份虚拟变量，视情况而定，主要看后面中介效应的检验结果
-cl1<-lm(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+p1<-lm(linc~slinc_f+sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(p1)
+cl1<-lm(linc~slinc_f*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 # cl1<-lm(linc~linc_f*p+age_c+age_c2+age_f+age_f2,data=mdata)
 summary(cl1)
-cl2<-lm(linc~linc_f*e+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+p2<-lm(linc~slinc_f+se+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(p2)
+cl2<-lm(linc~slinc_f*se+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(cl2)
-cl3<-lm(linc~linc_f*f+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
+p3<-lm(linc~slinc_f+sf+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(p3)
+cl3<-lm(linc~slinc_f*sf+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(cl3)
-cl4<-lm(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+p4<-lm(linc~slinc_f+st+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(p4)
+cl4<-lm(linc~slinc_f*st+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(cl4)
-cl5<-lm(linc~linc_f*log(pgdp)+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+p5<-lm(linc~slinc_f+spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(p5)
+cl5<-lm(linc~slinc_f*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(cl5)
-cl6<-lm(linc~linc_f*eg+age_c+age_c2+age_f+age_f2+gender+urban+y2+y3+y5,data=mdata)
-summary(cl6)
+# p6<-lm(linc~slinc_f+se+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+# summary(p6)
+# cl6<-lm(linc~slinc_f*seg+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+# summary(cl6)
 
-# 分位数回归，因为控制年份会报错：非奇异，所以不添加年份
+# 分位数回归，控制哪些变量根据结果定
 # 暂时只做了显著的几个
 r1<-rq(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r1, se = "boot")
@@ -300,9 +324,7 @@ r3<-rq(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2
 summary(r3, se = "boot")
 
 # 有中介的调节模型
-# 注意自变量、因变量、中介变量、调节变量需要中心化
-mdata<-mdata%>%mutate(slinc=scale(linc),slinc_f=scale(linc_f),seduy_c=scale(eduy_c),seduy_f=scale(eduy_f),
-                      sisei_c=scale(isei_c),sisei_f=scale(isei_f),sp=scale(p),st=scale(t),spgdp=scale(log(pgdp)))
+# 考虑将教育支出占比、农业支出占比、第三产业占比等作为中介变量，即考虑了宏观和微观的中介变量
 # 城镇化率
 # 子代受教育年份
 k1=lm(seduy_c~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
@@ -323,6 +345,26 @@ summary(k2)
 k1=lm(sisei_f~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(k1)
 k2=lm(slinc~slinc_f+sp*slinc_f+sisei_f*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k2)
+# 产业结构
+k1=lm(st~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+st*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k2)
+# 教育支出
+k1=lm(se~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+se*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k2)
+# 农业支出
+k1=lm(sf~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+sf*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k2)
+# 人均GDP
+k1=lm(spgdp~slinc_f+sp*slinc_f+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
+summary(k1)
+k2=lm(slinc~slinc_f+sp*slinc_f+spdgp*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,data=mdata)
 summary(k2)
 
 # 产业结构
@@ -372,7 +414,8 @@ summary(k2)
 
 #######描述性统计
 # CGSS原始数据，收入年龄散点图
-raw_data<-rbind(res15_1,res13_1,res12_1)%>%select(age_c,age_f,linc,isei_c,isei_f,eduy_c,eduy_f,urban,year)
+raw_data<-rbind(res15_1,res13_1,res12_1)%>%select(age_c,age_f,linc,inc_cpi,isei_c,isei_f,eduy_c,eduy_f,urban,year)
+describe(raw_data)
 # 散点图
 ggplot(res15_1,mapping = aes(x=age_c,y=linc,colour=factor(gender)))+geom_point()+labs(x="年龄",y="收入",color="性别")+ scale_colour_discrete(labels=c("女","男"))
 ggplot(res13_1,mapping = aes(x=age_c,y=linc,colour=factor(gender)))+geom_point()+labs(x="年龄",y="收入",color="性别")+ scale_colour_discrete(labels=c("女","男"))
@@ -384,7 +427,10 @@ ggplot(res13_1,mapping = aes(x=linc))+geom_histogram(bins = 50)+labs(x="收入")
 ggplot(res12_1,mapping = aes(x=linc))+geom_histogram(bins = 100)+labs(x="收入")
 # 箱线图
 ggplot(raw_data,mapping = aes(x=factor(year),y=linc,group=year,fill=factor(year)))+geom_boxplot()+labs(x="年份",y="收入",fill="年份")
-ggplot(result1,mapping = aes(x=factor(year),y=lincome,group=year,fill=factor(year)))+geom_boxplot()+labs(x="年份",y="收入",fill="年份")
-# 原始CGSS描述性统计：收入、年龄、城乡、职业、教育
-describe(raw_data)
-describe(result%>%select(age,eduy,lincome,job,urban,year))
+ggplot(result,mapping = aes(x=factor(year),y=lincome,group=year,fill=factor(year)))+geom_boxplot()+labs(x="年份",y="收入",fill="年份")
+# 描述性统计：收入、年龄、城乡、职业、教育
+gg<-total3%>%select(age_c,age_f,linc,isei_c,isei_f,eduy_c,eduy_f,urban,year,gender)
+ff<-result1%>%select(age,eduy,lincome,job,urban,year)
+describe(gg)
+describe(ff)
+describeBy(gg,group = list(factor(gg$year),factor(gg$urban)))
