@@ -1,0 +1,18 @@
+DATA:
+FILE IS "C:\Users\yirav\Documents\jupyter notebook\data result\test_data.dat"; ! Bootstrap 法需要原始数据
+VARIABLE:
+NAMES ARE Y W X U UX UW;
+ANALYSIS: Bootstrap=1000; ! Bootstrap 法抽样 1000 次
+MODEL:
+Y on W (b1)
+X U UX
+UW (b2); !做 Y 对 W, X,U,UX,UW 的回归, 将 Y 对 W 和 UW 的回归系数命名为 b1 和 b2
+W on X (a1)
+U
+UX (a3); !做 W 对 X,U, UX 的回归, 将 W 对 X 和 UX 的回归系数命名为 a1 和 a3
+MODEL CONSTRAINT:
+new (H1-H3);
+H1=a3*b1; !中介效应值 a3b1 的估计
+H2=a3*b2; !中介效应值 a3b2 的估计
+H3=a1*b2; !中介效应值 a1b2 的估计
+OUTPUT: cinterval (bcbootstrap); !输出偏差校正的百分位 Bootstrap 计算的中介效应置信区间
