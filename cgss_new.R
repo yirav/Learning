@@ -154,7 +154,7 @@ colnames(dum_c)<-c('c0','c1','c2','c3')
 total2<-cbind(total1,dum_dis,dum_y,dum_c)
 # 2012、2013、2015年
 total3<-total2[c('urban','gender','age_c','age_c2','age_f','age_f2',
-                 'eduy_c','eduy_f','isei_c','isei_f','party_c','income','linc',
+                 'eduy_c','eduy_f','isei_c','isei_f','party_c','income','linc','party_f',
                  'd1','d2','y2','y3','y5','c1','c2','c3','p','e','f','t','pgdp','eg','year')]%>%filter(year%in%c(2012,2013,2015))
 total3<-na.omit(total3)
 
@@ -316,12 +316,16 @@ summary(cl5)
 
 # 分位数回归，控制哪些变量根据结果定
 # 暂时只做了显著的几个
-r1<-rq(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+r1<-rq(linc~slinc_f*sp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+# r1<-rq(linc~linc_f*p+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= 1:99/100,data=mdata)
 summary(r1, se = "boot")
-r2<-rq(linc~linc_f*log(pgdp)+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+plot(summary(r1, se = "boot"),parm=c(12))
+r2<-rq(linc~slinc_f*spgdp+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r2, se = "boot")
-r3<-rq(linc~linc_f*t+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
+plot(summary(r2, se = "boot"),parm=c(12))
+r3<-rq(linc~slinc_f*st+age_c+age_c2+age_f+age_f2+gender+urban+y3+y5,tau= c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9),data=mdata)
 summary(r3, se = "boot")
+plot(summary(r3, se = "boot"),parm=c(12))
 
 # 有中介的调节模型
 # 考虑将教育支出占比、农业支出占比、第三产业占比等作为中介变量，即考虑了宏观和微观的中介变量
